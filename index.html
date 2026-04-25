@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Work Timer</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: white;
+
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+
+      height: 100vh;
+
+      background: radial-gradient(circle at top,
+        #3aa7ff,
+        #0b1b2b
+      );
+      -webkit-app-region: drag;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 20px;
+      width: 260px;
+      text-align: center;
+      box-shadow: 0 0 30px rgba(0, 180, 255, 0.25);
+    }
+
+    /* =========================
+       🌊 RING STYLE (FRUTIGER AERO)
+       ========================= */
+
+    .ring {
+      position: relative;
+      width: 150px;
+      height: 150px;
+      margin: 10px auto 20px auto;
+      filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.5));
+    }
+
+    .ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .ring-bg {
+      fill: none;
+      stroke: rgba(255,255,255,0.15);
+      stroke-width: 10;
+    }
+
+    .ring-fg {
+      fill: none;
+      stroke: url(#grad);
+      stroke-width: 10;
+      stroke-linecap: round;
+
+      stroke-dasharray: 377;
+      stroke-dashoffset: 377;
+
+      transition: stroke-dashoffset 0.5s linear;
+      filter: drop-shadow(0 0 8px rgba(0, 200, 255, 0.8));
+    }
+
+    .ring-center {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 150px;
+      height: 150px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+
+    #time {
+      font-size: 26px;
+      margin: 0;
+      text-shadow: 0 0 10px rgba(0, 200, 255, 0.6);
+    }
+
+    #mode {
+      opacity: 0.8;
+      letter-spacing: 2px;
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    #breakin {
+      font-size: 13px;
+      opacity: 0.7;
+      margin-top: 10px;
+    }
+
+    button {
+      margin: 5px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: none;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+
+    button:hover {
+      background: rgba(255,255,255,0.25);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="glass">
+
+    <!-- 🌊 RING -->
+    <div class="ring">
+      <svg width="150" height="150">
+        <circle class="ring-bg" cx="75" cy="75" r="60"></circle>
+        <circle id="ring" class="ring-fg" cx="75" cy="75" r="60"></circle>
+      </svg>
+
+      <div class="ring-center">
+        <h1 id="time">00:00:00</h1>
+        <h2 id="mode">WORK</h2>
+      </div>
+    </div>
+
+    <h3 id="breakin">Break in: 00:00:00</h3>
+
+    <button onclick="window.timer.start()">Start</button>
+    <button onclick="window.timer.pause()">Pause</button>
+    <button onclick="window.timer.reset()">Reset</button>
+  </div>
+
+  <!-- gradient definition -->
+  <svg width="0" height="0">
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#3aa7ff" />
+        <stop offset="50%" stop-color="#00e0ff" />
+        <stop offset="100%" stop-color="#00ffa3" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <script>
+    const timeEl = document.getElementById("time");
+    const modeEl = document.getElementById("mode");
+    const breakEl = document.getElementById("breakin");
+    const ring = document.getElementById("ring");
+
+    const ding = new Audio("sound/ding.wav");
+    const chime = new Audio("sound/chime.wav");
+    let lastMode = window.timer.getState().mode;
+
+    const radius = 60;
+    const circumference = 2 * Math.PI * radius;
+
+    ring.style.strokeDasharray = circumference;
+    ring.style.strokeDashoffset = circumference;
+
+    function format(seconds) {
+      seconds = Number(seconds);
+      if (!Number.isFinite(seconds)) return "00:00:00";
+
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+
+      return `${h.toString().padStart(2,"0")}:` +
+             `${m.toString().padStart(2,"0")}:` +
+             `${s.toString().padStart(2,"0")}`;
+    }
+
+    function update() {
+      const state = window.timer.getState();
+      const isWork = state.mode === "work";
+
+      // 🔥 detect mode change (sound trigger)
+      if (state.mode !== lastMode) {
+        if (state.mode === "break") {
+          chime.currentTime = 0;
+          chime.play();
+        }
+
+        if (state.mode === "work") {
+          ding.currentTime = 0;
+          ding.play();
+        }
+
+        lastMode = state.mode;
+      }
+
+      // ⏱ MAIN TIMER (WORK = COUNT UP, BREAK = COUNT DOWN)
+      if (isWork) {
+        timeEl.textContent = format(state.workElapsed);
+        breakEl.textContent = "Break in: " + format(state.cycleRemaining);
+      } else {
+        timeEl.textContent = format(state.breakRemaining);
+        breakEl.textContent = "Work resumes in: " + format(state.breakRemaining);
+      }
+
+      // 🏷 MODE LABEL
+      modeEl.textContent = state.mode.toUpperCase();
+
+      // 🌊 RING PROGRESS (8-hour day)
+      const progress = state.workElapsed / state.workDayLimit;
+      const clamped = Math.min(Math.max(progress, 0), 1);
+
+      const offset = circumference * (1 - clamped);
+      ring.style.strokeDashoffset = offset;
+    }
+
+    setInterval(update, 500);
+  </script>
+
+</body>
+</html>
