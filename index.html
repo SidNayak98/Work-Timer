@@ -115,12 +115,49 @@
     button:hover {
       background: rgba(255,255,255,0.25);
     }
+
+    #window-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+
+      width: 26px;
+      height: 26px;
+
+      display: flex;              /* 👈 important */
+      align-items: center;        /* vertical center */
+      justify-content: center;    /* horizontal center */
+
+      font-size: 18px;
+      line-height: 1;             /* 👈 prevents vertical shift */
+
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+
+      background: rgba(255,255,255,0.15);
+      color: white;
+    }
+
+    .close-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
   </style>
 </head>
 
 <body>
 
   <div class="glass">
+
+    <div id="window-controls">
+    <button id="close-btn">✕</button>
+    </div>
 
     <!-- 🌊 RING -->
     <div class="ring">
@@ -158,10 +195,18 @@
     const modeEl = document.getElementById("mode");
     const breakEl = document.getElementById("breakin");
     const ring = document.getElementById("ring");
+    const closeBtn = document.getElementById("close-btn"); // ✅ added
 
     const ding = new Audio("sound/ding.wav");
     const chime = new Audio("sound/chime.wav");
     let lastMode = window.timer.getState().mode;
+
+    // ✅ Close → minimize to tray
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        window.windowControls.minimizeToTray();
+      });
+    }
 
     const radius = 60;
     const circumference = 2 * Math.PI * radius;
@@ -178,8 +223,8 @@
       const s = seconds % 60;
 
       return `${h.toString().padStart(2,"0")}:` +
-             `${m.toString().padStart(2,"0")}:` +
-             `${s.toString().padStart(2,"0")}`;
+            `${m.toString().padStart(2,"0")}:` +
+            `${s.toString().padStart(2,"0")}`;
     }
 
     function update() {
@@ -201,7 +246,7 @@
         lastMode = state.mode;
       }
 
-      // ⏱ MAIN TIMER (WORK = COUNT UP, BREAK = COUNT DOWN)
+      // ⏱ MAIN TIMER
       if (isWork) {
         timeEl.textContent = format(state.workElapsed);
         breakEl.textContent = "Break in: " + format(state.cycleRemaining);

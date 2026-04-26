@@ -39,6 +39,12 @@ ipcMain.on("timer:day-finish", () => {
   notify("Work Day Complete", "8-hour work session finished");
 });
 
+ipcMain.on("window:minimize-to-tray", () => {
+  if (mainWindow) {
+    mainWindow.hide();
+  }
+});
+
 /* =========================
    TRAY SETUP
    ========================= */

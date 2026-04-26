@@ -3,7 +3,6 @@ console.log("PRELOAD LOADED");
 const { contextBridge, ipcRenderer } = require("electron");
 
 let state = {
-  
   running: false,
   mode: "work",
 
@@ -17,50 +16,79 @@ let state = {
   workDayLimit: 8 * 60 * 60,
 
   dayStartedNotified: false,
-  dayFinishedNotified: false,
+  dayFinishedNotified: false
 };
+
+// 🔥 REAL TIME TRACKING
+let startTimestamp = null;
 
 function tick() {
   if (!state.running) return;
 
-  if (state.mode === "work") {
+  const now = Date.now();
+  const elapsedSeconds = Math.floor((now - startTimestamp) / 1000);
 
-    // ⏱ start-of-day notification (only once, at 0)
-    if (!state.dayStartedNotified && state.workElapsed === 0 && state.running) {
-      ipcRenderer.send("timer:day-start");
-      state.dayStartedNotified = true;
-    }
+  // Stop at 8 hours
+  if (elapsedSeconds >= state.workDayLimit) {
+    state.workElapsed = state.workDayLimit;
+    state.running = false;
 
-    state.cycleRemaining = Math.max(0, state.cycleRemaining - 1);
-    state.workElapsed++;
-
-    // 🏁 8 hour completion notification
-    if (!state.dayFinishedNotified && state.workElapsed >= state.workDayLimit) {
+    if (!state.dayFinishedNotified) {
       ipcRenderer.send("timer:day-finish");
       state.dayFinishedNotified = true;
     }
 
-    if (state.cycleRemaining === 0) {
+    return;
+  }
+
+  state.workElapsed = elapsedSeconds;
+
+  // 🔁 WORK / BREAK CYCLE CALCULATION
+  const totalCycleLength = state.workBlock + state.breakBlock;
+  const positionInCycle = elapsedSeconds % totalCycleLength;
+
+  if (positionInCycle < state.workBlock) {
+    // WORK MODE
+    if (state.mode !== "work") {
+      state.mode = "work";
+      ipcRenderer.send("timer:work");
+    }
+
+    state.cycleRemaining = state.workBlock - positionInCycle;
+  } else {
+    // BREAK MODE
+    if (state.mode !== "break") {
       state.mode = "break";
-      state.breakRemaining = state.breakBlock;
       ipcRenderer.send("timer:break");
     }
-  } else {
-    state.breakRemaining = Math.max(0, state.breakRemaining - 1);
 
-    if (state.breakRemaining === 0) {
-      state.mode = "work";
-      state.cycleRemaining = state.workBlock;
-    }
+    state.breakRemaining =
+      state.breakBlock - (positionInCycle - state.workBlock);
+  }
+
+  // 🟢 Day start notification (only once)
+  if (!state.dayStartedNotified && state.workElapsed === 0) {
+    ipcRenderer.send("timer:day-start");
+    state.dayStartedNotified = true;
   }
 }
 
 setInterval(tick, 1000);
 
+/* =========================
+   EXPOSED APIs
+   ========================= */
+
 contextBridge.exposeInMainWorld("timer", {
   start: () => {
-    state.running = true;
-    ipcRenderer.send("timer:start");
+    if (!state.running) {
+      state.running = true;
+
+      // preserve elapsed time if resuming
+      startTimestamp = Date.now() - state.workElapsed * 1000;
+
+      ipcRenderer.send("timer:start");
+    }
   },
 
   pause: () => {
@@ -71,13 +99,23 @@ contextBridge.exposeInMainWorld("timer", {
   reset: () => {
     state.running = false;
     state.mode = "work";
+
     state.workElapsed = 0;
     state.cycleRemaining = state.workBlock;
     state.breakRemaining = state.breakBlock;
+
     state.dayStartedNotified = false;
     state.dayFinishedNotified = false;
+
+    startTimestamp = null;
+
     ipcRenderer.send("timer:reset");
   },
 
   getState: () => state
+});
+
+// ✅ Window controls (for your custom X button)
+contextBridge.exposeInMainWorld("windowControls", {
+  minimizeToTray: () => ipcRenderer.send("window:minimize-to-tray")
 });
