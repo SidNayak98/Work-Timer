@@ -3,21 +3,17 @@ console.log("PRELOAD LOADED");
 const { contextBridge, ipcRenderer } = require("electron");
 
 /* =========================
-   LOGS
-========================= */
-let logs = [];
-
-/* =========================
    STATE
 ========================= */
+
 let state = {
   running: false,
   mode: "work",
 
   workElapsed: 0,
-  workDayLimit: 8 * 60 * 60,
+  workDayLimit: 8 * 60 * 60, // 8 hours
 
-  breakBlock: 30 * 60,
+  breakBlock: 30 * 60,       // 30 min break
   breakRemaining: 30 * 60,
 
   dayStartedNotified: false,
@@ -25,19 +21,18 @@ let state = {
 };
 
 /* =========================
-   TIMING CORE
+   INTERNAL TIMERS
 ========================= */
 
-// Work timing
 let workStartTimestamp = null;
-let pausedElapsed = 0;
-
-// Break timing
 let breakStartTimestamp = null;
 
 /* =========================
    LOGGING
 ========================= */
+
+let logs = [];
+
 function addLog(type) {
   const entry = {
     type,
@@ -49,18 +44,16 @@ function addLog(type) {
 }
 
 /* =========================
-   WORK UPDATE
+   WORK TIMER ENGINE
 ========================= */
-function updateWork() {
-  if (!state.running || state.mode !== "work") return;
+
+function updateWorkTime() {
   if (!workStartTimestamp) return;
 
   const now = Date.now();
+  state.workElapsed = Math.floor((now - workStartTimestamp) / 1000);
 
-  state.workElapsed =
-    Math.floor((now - workStartTimestamp) / 1000) + pausedElapsed;
-
-  // Cap at 8 hours
+  // 8 hour cap
   if (state.workElapsed >= state.workDayLimit) {
     state.workElapsed = state.workDayLimit;
     state.running = false;
@@ -72,7 +65,7 @@ function updateWork() {
     }
   }
 
-  // Start-of-day event
+  // Notify first start
   if (!state.dayStartedNotified && state.workElapsed === 0) {
     ipcRenderer.send("timer:day-start");
     addLog("DAY_STARTED");
@@ -81,10 +74,10 @@ function updateWork() {
 }
 
 /* =========================
-   BREAK UPDATE
+   BREAK TIMER ENGINE
 ========================= */
-function updateBreak() {
-  if (!state.running || state.mode !== "break") return;
+
+function updateBreakTime() {
   if (!breakStartTimestamp) return;
 
   const now = Date.now();
@@ -98,59 +91,65 @@ function updateBreak() {
 }
 
 /* =========================
-   MAIN LOOP
+   MAIN TICK
 ========================= */
+
 function tick() {
-  updateWork();
-  updateBreak();
+  if (!state.running) return;
+
+  if (state.mode === "work") {
+    updateWorkTime();
+  }
+
+  if (state.mode === "break") {
+    updateBreakTime();
+  }
 }
 
 setInterval(tick, 1000);
 
 /* =========================
-   WORK CONTROLS (TOGGLE FIX)
+   WORK TOGGLE (START/PAUSE)
 ========================= */
-function startWork() {
-  if (state.running && state.mode === "work") return;
-
-  state.running = true;
-  state.mode = "work";
-
-  workStartTimestamp = Date.now() - pausedElapsed * 1000;
-
-  addLog("WORK_START");
-  ipcRenderer.send("timer:start");
-}
-
-function pauseWork() {
-  if (!state.running) return;
-
-  state.running = false;
-
-  pausedElapsed = state.workElapsed;
-  workStartTimestamp = null;
-
-  addLog("WORK_PAUSE");
-  ipcRenderer.send("timer:pause");
-}
 
 function toggleWork() {
+
   if (state.mode !== "work") return;
 
-  if (state.running) {
-    pauseWork();
+  if (!state.running) {
+    // START / RESUME
+    state.running = true;
+
+    if (!workStartTimestamp) {
+      // fresh start
+      workStartTimestamp = Date.now();
+    } else {
+      // resume from paused time
+      workStartTimestamp = Date.now() - state.workElapsed * 1000;
+    }
+
+    addLog("WORK_START");
+    ipcRenderer.send("timer:start");
+
   } else {
-    startWork();
+    // PAUSE
+    state.running = false;
+
+    addLog("WORK_PAUSE");
+    ipcRenderer.send("timer:pause");
   }
 }
 
 /* =========================
-   BREAK CONTROLS
+   BREAK CONTROL
 ========================= */
+
 function startBreak() {
   if (state.mode === "break") return;
 
   state.mode = "break";
+  state.running = true;
+
   breakStartTimestamp = Date.now();
   state.breakRemaining = state.breakBlock;
 
@@ -162,83 +161,92 @@ function stopBreak() {
   if (state.mode !== "break") return;
 
   state.mode = "work";
-
   breakStartTimestamp = null;
 
-  // resume work properly
+  // Resume work from existing elapsed
   workStartTimestamp = Date.now() - state.workElapsed * 1000;
+  state.running = true;
 
   addLog("BREAK_END");
   ipcRenderer.send("timer:work");
 }
 
 /* =========================
-   API EXPOSED
+   RESET
 ========================= */
+
+function reset() {
+  state.running = false;
+  state.mode = "work";
+
+  state.workElapsed = 0;
+  state.breakRemaining = state.breakBlock;
+
+  state.dayStartedNotified = false;
+  state.dayFinishedNotified = false;
+
+  workStartTimestamp = null;
+  breakStartTimestamp = null;
+
+  addLog("RESET");
+  ipcRenderer.send("timer:reset");
+}
+
+/* =========================
+   EXPORT LOGS
+========================= */
+
+function exportLogs() {
+
+  const pad = (n) => String(n).padStart(2, "0");
+
+  const date = new Date();
+  const fileName =
+    `work-log-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.txt`;
+
+  const lines = logs.map(l => {
+    const t = new Date(l.timestamp);
+    return `[${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}] ${l.type}`;
+  });
+
+  const content = [
+    `WORK TIMER LOG`,
+    `Generated: ${date.toDateString()}`,
+    `================================`,
+    "",
+    ...lines
+  ].join("\n");
+
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+
+  URL.revokeObjectURL(url);
+
+  addLog("EXPORT_LOGS");
+}
+
+/* =========================
+   EXPOSE TO RENDERER
+========================= */
+
 contextBridge.exposeInMainWorld("timer", {
-
   toggleWork,
-
-  reset: () => {
-    state.running = false;
-    state.mode = "work";
-
-    state.workElapsed = 0;
-    state.breakRemaining = state.breakBlock;
-
-    state.dayStartedNotified = false;
-    state.dayFinishedNotified = false;
-
-    workStartTimestamp = null;
-    breakStartTimestamp = null;
-    pausedElapsed = 0;
-
-    addLog("RESET");
-    ipcRenderer.send("timer:reset");
-  },
-
   startBreak,
   stopBreak,
-
-  exportLogs: () => {
-    const pad = (n) => String(n).padStart(2, "0");
-
-    const date = new Date();
-    const fileName =
-      `work-log-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.txt`;
-
-    const lines = logs.map(l => {
-      const t = new Date(l.timestamp);
-      return `[${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}] ${l.type}`;
-    });
-
-    const content = [
-      "WORK TIMER LOG",
-      `Generated: ${date.toDateString()}`,
-      "=========================",
-      "",
-      ...lines
-    ].join("\n");
-
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    a.click();
-
-    URL.revokeObjectURL(url);
-
-    addLog("EXPORT_LOGS");
-  },
-
+  reset,
+  exportLogs,
   getState: () => state
 });
 
 /* =========================
    WINDOW CONTROLS
 ========================= */
+
 contextBridge.exposeInMainWorld("windowControls", {
   minimizeToTray: () => ipcRenderer.send("window:minimize-to-tray")
 });
