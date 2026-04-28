@@ -4,40 +4,44 @@
   <title>Work Timer</title>
 
   <style>
+
+    
     body {
       margin: 0;
       font-family: Arial, sans-serif;
       color: white;
 
+      /* ✅ window now wraps content instead of filling screen */
+      width: 360;
+      height: 360;
+
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
 
-      height: 100vh;
+      /* keep your nice aesthetic */
+      background: transparent;
+
+      /* important for Electron drag */
+      -webkit-app-region: drag;
+    }
+
+    .glass {
 
       background: radial-gradient(circle at top,
         #3aa7ff,
         #0b1b2b
       );
-      -webkit-app-region: drag;
-    }
-
-    .glass {
-      background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.2);
       backdrop-filter: blur(12px);
       border-radius: 20px;
+
       padding: 20px;
       width: 260px;
+
       text-align: center;
       box-shadow: 0 0 30px rgba(0, 180, 255, 0.25);
     }
-
-    /* =========================
-       🌊 RING STYLE (FRUTIGER AERO)
-       ========================= */
-
     .ring {
       position: relative;
       width: 150px;
@@ -47,7 +51,8 @@
     }
 
     .ring svg {
-      transform: rotate(-90deg);
+      transform: rotate(-90deg) scale(1.2);
+
     }
 
     .ring-bg {
@@ -61,11 +66,9 @@
       stroke: url(#grad);
       stroke-width: 10;
       stroke-linecap: round;
-
       stroke-dasharray: 377;
       stroke-dashoffset: 377;
-
-      transition: stroke-dashoffset 0.5s linear;
+      transition: stroke-dashoffset 0.4s linear;
       filter: drop-shadow(0 0 8px rgba(0, 200, 255, 0.8));
     }
 
@@ -80,6 +83,8 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
+
+      
     }
 
     #time {
@@ -95,14 +100,17 @@
       font-size: 14px;
     }
 
-    #breakin {
-      font-size: 13px;
-      opacity: 0.7;
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
       margin-top: 10px;
+      align-items: stretch;   /* 🔥 important */
+      width: 100%;
     }
 
-    button {
-      margin: 5px;
+    .controls button {
+      width: 100%;            /* 🔥 makes all buttons equal */
       padding: 6px 10px;
       border-radius: 10px;
       border: none;
@@ -111,31 +119,36 @@
       cursor: pointer;
       -webkit-app-region: no-drag;
     }
-
+    
+    button {
+      margin: 0;          /* remove extra spacing */
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: none;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
     button:hover {
       background: rgba(255,255,255,0.25);
     }
 
     #window-controls {
-    position: absolute;
-    top: 10px;
-    right: 10px;
+      position: absolute;
+      top: 10px;
+      right: 10px;
     }
 
     .close-btn {
-      position: absolute;
-      top: 10px;
-      right: 12px;
-
       width: 26px;
       height: 26px;
-
-      display: flex;              /* 👈 important */
-      align-items: center;        /* vertical center */
-      justify-content: center;    /* horizontal center */
+      display: flex;
+      align-items: center;
+      justify-content: center;
 
       font-size: 18px;
-      line-height: 1;             /* 👈 prevents vertical shift */
+      line-height: 1;
 
       border-radius: 50%;
       border: none;
@@ -144,130 +157,152 @@
       background: rgba(255,255,255,0.15);
       color: white;
     }
-
-    .close-btn:hover {
-      background: rgba(255,255,255,0.3);
-    }
   </style>
 </head>
 
 <body>
 
-  <div class="glass">
+<div class="glass">
 
-    <div id="window-controls">
+  <div id="window-controls">
     <button id="close-btn">✕</button>
-    </div>
-
-    <!-- 🌊 RING -->
-    <div class="ring">
-      <svg width="150" height="150">
-        <circle class="ring-bg" cx="75" cy="75" r="60"></circle>
-        <circle id="ring" class="ring-fg" cx="75" cy="75" r="60"></circle>
-      </svg>
-
-      <div class="ring-center">
-        <h1 id="time">00:00:00</h1>
-        <h2 id="mode">WORK</h2>
-      </div>
-    </div>
-
-    <h3 id="breakin">Break in: 00:00:00</h3>
-
-    <button onclick="window.timer.start()">Start</button>
-    <button onclick="window.timer.pause()">Pause</button>
-    <button onclick="window.timer.reset()">Reset</button>
   </div>
 
-  <!-- gradient definition -->
-  <svg width="0" height="0">
-    <defs>
-      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#3aa7ff" />
-        <stop offset="50%" stop-color="#00e0ff" />
-        <stop offset="100%" stop-color="#00ffa3" />
-      </linearGradient>
-    </defs>
-  </svg>
+  <!-- RING -->
+  <div class="ring">
+    <svg width="150" height="150">
+      <circle class="ring-bg" cx="75" cy="75" r="60"></circle>
+      <circle id="ring" class="ring-fg" cx="75" cy="75" r="60"></circle>
+    </svg>
 
-  <script>
-    const timeEl = document.getElementById("time");
-    const modeEl = document.getElementById("mode");
-    const breakEl = document.getElementById("breakin");
-    const ring = document.getElementById("ring");
-    const closeBtn = document.getElementById("close-btn"); // ✅ added
+    <div class="ring-center">
+      <h1 id="time">00:00:00</h1>
+      <h2 id="mode">WORK</h2>
+    </div>
+  </div>
 
-    const ding = new Audio("sound/ding.wav");
-    const chime = new Audio("sound/chime.wav");
-    let lastMode = window.timer.getState().mode;
+  <!-- CONTROLS -->
+  <div class="controls">
 
-    // ✅ Close → minimize to tray
-    if (closeBtn) {
-      closeBtn.addEventListener("click", () => {
-        window.windowControls.minimizeToTray();
-      });
-    }
+    <button id="work-toggle-btn">Start</button>
+    <button id="break-btn">Start Break</button>
+    <button id="reset-btn">Reset</button>
+    <button id="export-logs-btn">Export Logs</button>
 
-    const radius = 60;
-    const circumference = 2 * Math.PI * radius;
+  </div>
+</div>
 
-    ring.style.strokeDasharray = circumference;
-    ring.style.strokeDashoffset = circumference;
+<!-- gradient -->
+<svg width="0" height="0">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3aa7ff" />
+      <stop offset="50%" stop-color="#00e0ff" />
+      <stop offset="100%" stop-color="#00ffa3" />
+    </linearGradient>
+  </defs>
+</svg>
 
-    function format(seconds) {
-      seconds = Number(seconds);
-      if (!Number.isFinite(seconds)) return "00:00:00";
+<script>
+const timeEl = document.getElementById("time");
+const modeEl = document.getElementById("mode");
+const ring = document.getElementById("ring");
 
-      const h = Math.floor(seconds / 3600);
-      const m = Math.floor((seconds % 3600) / 60);
-      const s = seconds % 60;
+const workBtn = document.getElementById("work-toggle-btn");
+const breakBtn = document.getElementById("break-btn");
+const resetBtn = document.getElementById("reset-btn");
+const exportBtn = document.getElementById("export-logs-btn");
+const closeBtn = document.getElementById("close-btn");
 
-      return `${h.toString().padStart(2,"0")}:` +
-            `${m.toString().padStart(2,"0")}:` +
-            `${s.toString().padStart(2,"0")}`;
-    }
+const ding = new Audio("sound/ding.wav");
+const chime = new Audio("sound/chime.wav");
 
-    function update() {
-      const state = window.timer.getState();
-      const isWork = state.mode === "work";
+let lastMode = window.timer.getState().mode;
 
-      // 🔥 detect mode change (sound trigger)
-      if (state.mode !== lastMode) {
-        if (state.mode === "break") {
-          chime.currentTime = 0;
-          chime.play();
-        }
+/* =========================
+   CLOSE → TRAY
+========================= */
+closeBtn.onclick = () => {
+  window.windowControls.minimizeToTray();
+};
 
-        if (state.mode === "work") {
-          ding.currentTime = 0;
-          ding.play();
-        }
+/* =========================
+   BUTTONS
+========================= */
+workBtn.onclick = () => window.timer.toggleWork();
+resetBtn.onclick = () => window.timer.reset();
+exportBtn.onclick = () => window.timer.exportLogs();
 
-        lastMode = state.mode;
-      }
+breakBtn.onclick = () => {
+  const state = window.timer.getState();
+  state.mode === "work"
+    ? window.timer.startBreak()
+    : window.timer.stopBreak();
+};
 
-      // ⏱ MAIN TIMER
-      if (isWork) {
-        timeEl.textContent = format(state.workElapsed);
-        breakEl.textContent = "Break in: " + format(state.cycleRemaining);
-      } else {
-        timeEl.textContent = format(state.breakRemaining);
-        breakEl.textContent = "Work resumes in: " + format(state.breakRemaining);
-      }
+/* =========================
+   FORMAT
+========================= */
+function format(seconds) {
+  const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
+  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+  const s = String(seconds % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
 
-      // 🏷 MODE LABEL
-      modeEl.textContent = state.mode.toUpperCase();
+/* =========================
+   UPDATE LOOP
+========================= */
+const radius = 60;
+const circumference = 2 * Math.PI * radius;
 
-      // 🌊 RING PROGRESS (8-hour day)
-      const progress = state.workElapsed / state.workDayLimit;
-      const clamped = Math.min(Math.max(progress, 0), 1);
+ring.style.strokeDasharray = circumference;
 
-      const offset = circumference * (1 - clamped);
-      ring.style.strokeDashoffset = offset;
-    }
+function update() {
+  const state = window.timer.getState();
 
-    setInterval(update, 500);
-  </script>
+  /* sound */
+  if (state.mode !== lastMode) {
+    (state.mode === "break" ? chime : ding).play();
+    lastMode = state.mode;
+  }
+
+  /* timer */
+  if (state.mode === "work") {
+    timeEl.textContent = format(state.workElapsed);
+  } else {
+    timeEl.textContent = format(state.breakRemaining);
+  }
+
+  modeEl.textContent = state.mode.toUpperCase();
+
+  /* WORK BUTTON TOGGLE */
+  workBtn.textContent = state.running ? "Pause" : "Start";
+
+  /* BREAK BUTTON TEXT */
+  breakBtn.textContent =
+    state.mode === "work" ? "Start Break" : "Stop Break";
+
+  /* hide buttons during break */
+  const inWork = state.mode === "work";
+
+  const hideDuringBreak = (el) => {
+    el.style.opacity = inWork ? "1" : "0";
+    el.style.pointerEvents = inWork ? "auto" : "none";
+  };
+
+  hideDuringBreak(workBtn);
+  hideDuringBreak(resetBtn);
+  hideDuringBreak(exportBtn);
+
+  /* ring */
+  const progress = state.workElapsed / state.workDayLimit;
+  ring.style.strokeDashoffset =
+    circumference * (1 - Math.min(Math.max(progress, 0), 1));
+}
+
+setInterval(update, 300);
+</script>
 
 </body>
 </html>

@@ -81,8 +81,8 @@ function createTray() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 500,
-    height: 300,
+    width: 360,
+    height: 360,
 
     alwaysOnTop: true,
     frame: false,
