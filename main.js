@@ -4,6 +4,8 @@ const path = require("path");
 let mainWindow;
 let tray;
 
+let notifiedMilestones = new Set();
+
 /* =========================
    NOTIFICATIONS (optional)
    ========================= */
@@ -23,7 +25,11 @@ ipcMain.on("timer:day-start", () => {
 });
 
 ipcMain.on("timer:pause", () => console.log("PAUSE RECEIVED"));
-ipcMain.on("timer:reset", () => console.log("RESET RECEIVED"));
+ipcMain.on("timer:reset", () => {
+  console.log("RESET RECEIVED")
+  notifiedMilestones.clear();}
+);
+
 
 ipcMain.on("timer:break", () => {
   console.log("BREAK RECEIVED");
@@ -43,6 +49,52 @@ ipcMain.on("window:minimize-to-tray", () => {
   if (mainWindow) {
     mainWindow.hide();
   }
+});
+
+ipcMain.on("timer:tick", (event, workSeconds) => {
+
+  // Every 30 minutes
+  if (
+    workSeconds > 0 &&
+    workSeconds % (30 * 60) === 0 &&
+    !notifiedMilestones.has(workSeconds)
+  ) {
+    const minutes = workSeconds / 60;
+
+    notify(
+      "Work Progress",
+      `${minutes} minutes completed.`
+    );
+
+    notifiedMilestones.add(workSeconds);
+  }
+
+  // 2.5 hour mark
+  if (
+    workSeconds === 150 * 60 &&
+    !notifiedMilestones.has("2.5h")
+  ) {
+    notify(
+      "Break Recommended",
+      "You've worked 2 and a half hours. Please take a break."
+    );
+
+    notifiedMilestones.add("2.5h");
+  }
+
+  // 5 hour mark
+  if (
+    workSeconds === 300 * 60 &&
+    !notifiedMilestones.has("5h")
+  ) {
+    notify(
+      "Break Recommended",
+      "You've worked 5 hours. Please take a break."
+    );
+
+    notifiedMilestones.add("5h");
+  }
+
 });
 
 /* =========================

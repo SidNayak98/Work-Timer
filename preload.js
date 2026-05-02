@@ -99,11 +99,19 @@ function tick() {
 
   if (state.mode === "work") {
     updateWorkTime();
+
+    if (!state.dayStartedNotified && state.workElapsed === 0) {
+      ipcRenderer.send("timer:day-start");
+      state.dayStartedNotified = true;
+    }
   }
 
   if (state.mode === "break") {
     updateBreakTime();
   }
+
+  // 👇 NEW LINE
+  ipcRenderer.send("timer:tick", state.workElapsed);
 }
 
 setInterval(tick, 1000);
